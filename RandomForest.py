@@ -16,29 +16,33 @@ class DecisionTree:
         #print(self.training_set)
         self.__start__()
         
-    def __entropy_global__(self, target_name):
+    def __global_entropy__(self, target_name):
         """ Calcula la entropia de la variable objetivo
             Parametro:
                 target_name: Nombre de la columna objetivo
         """
-        debug = ~False
+        debug = False
         target_column = self.training_set[target_name]
-        print("count\n", target_column.value_counts())
-        print("total : ", len(target_column))
         # calcula la probabilidad elem/total y las deja en un np array
         probability = (target_column.value_counts()/len(target_column)).values
         # aplica logaritmo de 2 a cada elemento
         log_2 =  np.log2(probability)
         entropy = -(probability @ log_2)
+        
         if(debug):
-            print("prob\n", probability)
-            print("log\n", log_2)
-            print("result\n", entropy)
+            print("\ncount\n", target_column.value_counts())
+            print("\ntotal:", len(target_column))
+            print("\nprob\n", probability)
+            print("\nlog\n", log_2)
+            print("\nresult:", entropy)
         return entropy
 
     def __entropy_2__(self, var_name):
-        """ Devuelve un arreglo con las entropias de la variable
+        """ Devuelve un arreglo con las entropias de todas las clases de la variable
+            Parametro: Arreglo sobre el cual se sacara la entropia
         """
+        debug = False
+        
         # Toma la columna objetivo y la columna adicional
         columns = self.training_set[[var_name,self.target_var]]
         
@@ -55,21 +59,20 @@ class DecisionTree:
         # Obtiene la cantidad de registros en la tabla
         vertical_size = table.shape[0]
         entropy_array = []
-        print(table, "\n")
-        print(vertical_size, "\n")
-        print(var_name, "\n")
+        if debug:
+            print(table, "\n")
+            print(vertical_size, "\n")
+            print(var_name, "\n")
         i = 0
         while (i < vertical_size):
             #Selecciona la fila i de la tabla
             numerators = table.iloc[i,:]
-            print("raw\n",numerators)
             
             # Obtiene los valores de la columna que son distinto de 0 como un arreglo numpy 
             numerators = numerators[numerators!= 0].values
             
             # Suma los valores del arreglo para usar como denominador
             denominator = table.iloc[i,:].sum()
-            print("denominador\n", denominator)
             
             # Realiza una division elemento por elemento
             division = numerators / denominator
@@ -81,30 +84,71 @@ class DecisionTree:
             # Devido a que son vectores y no matrices el resultado es el mismo
             # que en el producto punto
             entropy = -(division @ log)
-            print("division ",division, "\n")
-            print("log ", log, "\n")
-            print("entropy ",entropy, "\n")
-            print(17*"-")
+      
+            if (debug):
+                print("\nraw\n",numerators)
+                print("\ndenominador\n", denominator)
+                print("\ndivision\n",division)
+                print("\nlog\n", log)
+                print("\nentropy\n",entropy)
+                print(17*"-")
+
+                
             # Arma un arreglo con los resultados
             entropy_array += [entropy]
             i += 1;
         # Agrega al arreglo de resultados el indice para indicar a que elemento
-        # pertenece la entropia
-        indices = pd.Series(np.array(entropy_array),index= index )
-        print(indices)
-        return indices
+        # pertenece la entropia usando pandas
+        pandas_entropy = pd.Series(np.array(entropy_array),index= index )
+        
+        if debug:
+            print("\nentropy",var_name, "\n",pandas_entropy)
+        return pandas_entropy
             
 
     
-    def __gain__(self):
-        pass
+    def __gain__(self, var_name):
+        """ Calcula la ganancia que se tendria con una variable
+            Parametros:
+                var_name: Nombre de la variable
+        """
+        debug = False
+        # Obtiene la entropia de la variable objetivo
+        entropy_global = self.__global_entropy__(self.target_var)
+        # Obtiene la entropia de la variable var_name
+        entropy_array = self.__entropy_2__(var_name)
+        # Obtiene los numeradores de la proporcion de la formula de la ganancia
+        numerators = self.training_set[var_name].value_counts().sort_index()
+        # Obtiene el denominador
+        denominators = len(self.training_set)
+        proportions = numerators/denominators
+        
+        # Obtiene ganancia
+        ganancia = entropy_global - (proportions @ entropy_array)
+        
+        if debug:
+            print("\nNumerators\n",numerators)
+            print("\nDenominators\n",denominators)
+            print("\nproportions \n", proportions)
+            print("\nresult multiplicacion\n", proportions @ entropy_array)
+            print("\nganancia: ", ganancia)
+        return pd.Series([ganancia], index=[var_name])
 
+    def __next_level_():
+        pass
+        
     def __start__(self):
         debug = False
-        #self.__entropy_global__(self.target_var)
+        # Obtengo todos los nombres de las columnas
         columns = self.training_set.columns
-        name = columns[columns != self.target_var][0]
-        self.__entropy_2__(name)
+        # Obtengo los nombres de las columnas distintos de la variable objetivo
+        names = columns[columns != self.target_var]
+        gains = pd.Series()
+        for column in names:
+            gain = self.__gain__(column);
+            gains = gains.append(gain)
+        print("\nganacias\n", gains)    
+            
         if (debug):
             #print("len \n", len(self.training_set))
             #print("primera fila\n",self.training_set.iloc[0])
@@ -159,7 +203,8 @@ class RandomForest:
     
 
 def main():
-    debug = ~False
+    pd.set_option("display.precision", 17)
+    debug = False
     headers = ["name","landmass","zone","area","population","language","religion","bars","stripes","colours","red","green","blue","gold","white","black","orange","mainhue","circles","crosses","saltires","quarters","sunstars","crescent","triangle","icon","animate","text","topleft","botright"]
     table = pd.read_csv("resource/flag.data",names=headers)
     #table = pd.read_csv("resource/iris.csv")
