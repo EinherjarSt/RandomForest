@@ -258,10 +258,11 @@ class DecisionTree:
 
         
 class RandomForest:
-    def __init__(self, training_set, target_var,ntree):
+    def __init__(self, training_set, target_var,ntree, nvar):
         self._training_set = training_set
         self._target_var = target_var
         self._ntree = ntree
+        self._nvar = nvar
         self._list_of_trees = []
         self.__start__()
         
@@ -315,7 +316,7 @@ class RandomForest:
         debug = False
         i = 0
         while (i < self._ntree):    
-            tree_var = self._choose_attribute_(3)
+            tree_var = self._choose_attribute_(self._nvar)
             self._list_of_trees += [DecisionTree(tree_var, self._target_var)]
             i += 1
             
@@ -334,14 +335,14 @@ def main():
     training_data = table[0:50]
     evaluation_data = table[50:]
     target_var = "religion"
-    #target_var = "religion"
     if(debug):
         print("table\n",table)
         print("table\n", training_data)
         print("evaluacion\n",evaluation_data)
-    randomForest = RandomForest(training_data, target_var, 100)
+    randomForest = RandomForest(training_data, target_var, 400, 6)
     
     if(debug): print("\n\n evaluacion",80*"-")
+    sucess_rate = 0
     for i in range(len(evaluation_data)):
         print(80*"-")
         test_data = evaluation_data.iloc[i,:]
@@ -350,8 +351,9 @@ def main():
         test_data = test_data.drop(target_var)
         result = randomForest.__predict__(test_data)
         print("\n\nresultado prediccion: ", result)
-        print("\n\nresultado esperado: ", expected_result)
-
+        print("resultado esperado: ", expected_result)
+        if (result == expected_result): sucess_rate += 1
+    print("\n\n sucess_rate: {:.2%}%".format(sucess_rate / len(evaluation_data)))
 
 if __name__ == "__main__":
     main()
