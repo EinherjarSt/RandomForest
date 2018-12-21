@@ -11,9 +11,13 @@ import pandas as pd
 
 class DecisionTree:
     def __init__(self, training_set, target_var):
-        self.training_set = training_set
-        self.target_var = target_var
-        #print(self.training_set)
+        self._training_set = training_set
+        self._target_var = target_var
+        self._parent = None
+        self._branches = {}
+        # {key, pandas} Guarda la entropias de las variables
+        self._dic_entropy = {}
+
         self.__start__()
         
     def __global_entropy__(self, target_name):
@@ -22,7 +26,7 @@ class DecisionTree:
                 target_name: Nombre de la columna objetivo
         """
         debug = False
-        target_column = self.training_set[target_name]
+        target_column = self._training_set[target_name]
         # calcula la probabilidad elem/total y las deja en un np array
         probability = (target_column.value_counts()/len(target_column)).values
         # aplica logaritmo de 2 a cada elemento
@@ -44,10 +48,10 @@ class DecisionTree:
         debug = False
         
         # Toma la columna objetivo y la columna adicional
-        columns = self.training_set[[var_name,self.target_var]]
+        columns = self._training_set[[var_name,self._target_var]]
         
         # Las agrupa por columna adicional(var_name) y la columna objetivo
-        var = columns.groupby([var_name,self.target_var])
+        var = columns.groupby([var_name,self._target_var])
         
         # Obtiene una tabla que indica la cantidad de elementos 
         # en la columna objetivo por cada clase de la columna adicional
@@ -99,8 +103,9 @@ class DecisionTree:
             i += 1;
         # Agrega al arreglo de resultados el indice para indicar a que elemento
         # pertenece la entropia usando pandas
-        pandas_entropy = pd.Series(np.array(entropy_array),index= index )
+        pandas_entropy = pd.Series(np.array(entropy_array), index= index )
         
+        self._dic_entropy[var_name] = pandas_entropy
         if debug:
             print("\nentropy",var_name, "\n",pandas_entropy)
         return pandas_entropy
@@ -114,13 +119,13 @@ class DecisionTree:
         """
         debug = False
         # Obtiene la entropia de la variable objetivo
-        entropy_global = self.__global_entropy__(self.target_var)
+        entropy_global = self.__global_entropy__(self._target_var)
         # Obtiene la entropia de la variable var_name
         entropy_array = self.__entropy_2__(var_name)
         # Obtiene los numeradores de la proporcion de la formula de la ganancia
-        numerators = self.training_set[var_name].value_counts().sort_index()
+        numerators = self._training_set[var_name].value_counts().sort_index()
         # Obtiene el denominador
-        denominators = len(self.training_set)
+        denominators = len(self._training_set)
         proportions = numerators/denominators
         
         # Obtiene ganancia
@@ -134,35 +139,66 @@ class DecisionTree:
             print("\nganancia: ", ganancia)
         return pd.Series([ganancia], index=[var_name])
 
-    def __next_level_():
-        pass
+    def make_tree(self, gains):
+        """ Esta funcion va creando sub_arboles de decision.
+            
+            Parametros: 
+                gains: Serie de las ganancias de cada variable obtenida
+        """
+        debug = ~False
+        if gains.empty:
+            return
+        # Obtiene la variable que tiene la mayor ganancia
+        max_gain_name = gains.idxmax()
+        # Establece la variable de mayor ganancia como la raiz de este arbol
+        self._parent = max_gain_name
+        # Obtiene todas las clases de la variable con mayor ganancia
+        classes = self._training_set[max_gain_name].drop_duplicates()
+        # Recorre y agrega las ramas y nuevos nodos
+        for class_ in classes:
+            # Si la entropia es 0 agrega la religion directamente
+            if(self._dic_entropy[max_gain_name][class_] == 0):
+                r = self._training_set[[max_gain_name, self._target_var]][self._training_set[max_gain_name] == class_].drop_duplicates()
+                self._branches[class_] = r["religion"].values[0]
+            # Sino crea un nuevo subarbol
+            else:
+                # Obtiene un subconjunto de entrenamiento filtrando por la clase
+                modified_training_set = self._training_set[self._training_set[max_gain_name] == class_]
+                # Quita la variable ya utilizada
+                modified_training_set = modified_training_set.drop(max_gain_name, axis = 1)
+                self._branches[class_] = DecisionTree(modified_training_set, self._target_var)
+                if debug:
+                    print("\nmodificado\nclass",class_,"\n", modified_training_set)
+
+                
+        if debug:
+            print("\nmax_var_name:",max_gain_name)
+            print("\nclasses\n",classes)
+            print("\nbranches\n",self._branches)
+            print("\ndic_entropy\n", self._dic_entropy)
+
         
     def __start__(self):
-        debug = False
+        debug = ~False
         # Obtengo todos los nombres de las columnas
-        columns = self.training_set.columns
+        columns = self._training_set.columns
         # Obtengo los nombres de las columnas distintos de la variable objetivo
-        names = columns[columns != self.target_var]
+        names = columns[columns != self._target_var]
         gains = pd.Series()
         for column in names:
             gain = self.__gain__(column);
             gains = gains.append(gain)
-        print("\nganacias\n", gains)    
-            
+ 
         if (debug):
-            #print("len \n", len(self.training_set))
-            #print("primera fila\n",self.training_set.iloc[0])
-            #print("pais \n",self.training_set.iloc[0].iat[0])
-            #print("religion \n", self.training_set.iloc[0]["religion"])
-            training_set_without_religion = self.training_set.loc[:, self.training_set.columns != "religion"]
-            #print("sin religion\n", training_set_without_religion)
-            #print("pura religion\n", self.training_set["religion"])
-            #print("entropia\n", self.__entropy__(self.training_set["religion"]))
+            print("\nganacias\n", gains)
+            
+        self.make_tree(gains)
+
         
 class RandomForest:
     def __init__(self, training_set, target_var,ntree):
-        self.training_set = training_set
-        self.target_var = target_var
+        self._training_set = training_set
+        self._target_var = target_var
         self.ntree = ntree
         self.__start__()    
         
@@ -181,13 +217,13 @@ class RandomForest:
             Parametros:
                 nvar: Cantidad de variables a elegir
         """
-        number_of_var = self.training_set.shape[1]
-        if (isinstance(self.training_set, pd.DataFrame) and
+        number_of_var = self._training_set.shape[1]
+        if (isinstance(self._training_set, pd.DataFrame) and
             (0 < nvar < number_of_var)):
             # Obtiene la tabla sin la columna objetivo
-            table_without_target = self.training_set[self.training_set.columns[self.training_set.columns != self.target_var]]
+            table_without_target = self._training_set.drop(self._target_var, axis=1)
             # Elige al azar las variables y une la columna objetivo
-            new_table = table_without_target.sample(n=nvar, axis=1).join(self.training_set[self.target_var])
+            new_table = table_without_target.sample(n=nvar, axis=1).join(self._training_set[self._target_var])
             return new_table
         
         else:
@@ -197,7 +233,7 @@ class RandomForest:
     def __start__(self):
         debug = False
         tree_var = self._choose_attribute_(3)
-        arbol_de_decision = DecisionTree(tree_var, self.target_var)
+        arbol_de_decision = DecisionTree(tree_var, self._target_var)
         if (debug):
             print("RandomForest")
     
