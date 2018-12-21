@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib as plot
 import pandas as pd
 
+# Si cambia esta variable por true imprimira todos los print del programa
 debug = False
 
 class DecisionTree:
@@ -202,6 +203,9 @@ class DecisionTree:
 
         
     def __start__(self):
+        """ Comienza la ejecucion de la clase. El constructor se encarga de llamar a este
+            metodo
+        """
         #debug = ~False
         if debug : 
             print("\n\nProfundidad ",self._profundidad,80*"=") 
@@ -212,6 +216,7 @@ class DecisionTree:
         columns = self._training_set.columns
         # Obtengo los nombres de las columnas distintos de la variable objetivo
         names = columns[columns != self._target_var]
+        # Serie vacia a la que se le iran agregando elementos
         gains = pd.Series()
         for column in names:
             if debug: print("\n\nstart ", column, 80*"-")
@@ -235,13 +240,22 @@ class DecisionTree:
             print("\nparent: ",self._parent)
             print("branches\n",self._branches)
         try:
+            # Obtiene del dato a analizar la clase correspondiente al nodo de este arbol
             branch_value = evaluation_data[self._parent]
+            
+            # Obtiene el siguiente elemento del diccionario
             next_node = self._branches[branch_value]
             
+            # Si es decicion tree entonces lo recorrera
             if (isinstance(next_node, DecisionTree)):
+                # Llama a la  funcion de evaluacion del nodo hijo
                 result = next_node.__predict__(evaluation_data)
+                # Devuelve solo si el resultado no es None
                 if (result != None):
                     return result
+                else:
+                    return None
+            # Si es un entero entonces devuelve
             else:
                 if debug: print(self._target_var, "es: ", next_node)
                 return next_node
@@ -277,8 +291,9 @@ class RandomForest:
         if debug: print(evaluation_data)
         counts = pd.Series();
         for tree in self._list_of_trees:
-            # Va agregando filas a la serie de votaciones
+            # Consulta el valor de la prediccion
             result = tree.__predict__(evaluation_data)
+            # Si el resultado no es None lo agrega a la serie
             if result != None:
                 counts = counts.append(pd.Series(result))
                 
@@ -313,10 +328,15 @@ class RandomForest:
             
             
     def __start__(self):
+        """ Comienza la ejecucion de la clase. El constructor se encarga de llamar a este
+            metodo
+        """
         debug = False
         i = 0
-        while (i < self._ntree):    
+        while (i < self._ntree):
+            # Escoge aleatoriamente los atributos para cada arbol que cree
             tree_var = self._choose_attribute_(self._nvar)
+            # Agrega el arbol creado a una lista
             self._list_of_trees += [DecisionTree(tree_var, self._target_var)]
             i += 1
             
@@ -325,21 +345,38 @@ class RandomForest:
             print(self._list_of_trees)
     
 
+def random(table, nrandom):
+    """ Escoge al azar variables para armar el arbol
+    """
+    if 0 > nrandom or nrandom > len(table):
+        raise IndexError("El indice no es valido")
+    
+    # Escoge al azar nrandom variables
+    training_data = table.sample(n=50)
+    # Obtiene las variables que no escogio
+    evaluation_data = pd.concat([table,training_data]).drop_duplicates(keep=False)
+    return training_data, evaluation_data
+    
+    
 def main():
+    # Configuraciones de imprecion pandas
     pd.set_option("display.precision", 17)
     pd.options.display.max_columns = 2000
     debug = False
     headers = ["name","landmass","zone","area","population","language","religion","bars","stripes","colours","red","green","blue","gold","white","black","orange","mainhue","circles","crosses","saltires","quarters","sunstars","crescent","triangle","icon","animate","text","topleft","botright"]
     table = pd.read_csv("resource/flag.data",names=headers)
-    #table = pd.read_csv("resource/iris.csv")
-    training_data = table[0:50]
-    evaluation_data = table[50:]
+    
+    #training_data = table[0:50]
+    #evaluation_data = table[50:]
+    training_data, evaluation_data = random(table, 100)
     target_var = "religion"
+    
     if(debug):
         print("table\n",table)
         print("table\n", training_data)
         print("evaluacion\n",evaluation_data)
-    randomForest = RandomForest(training_data, target_var, 400, 6)
+    
+    randomForest = RandomForest(training_data, target_var, 400, 4)
     
     if(debug): print("\n\n evaluacion",80*"-")
     sucess_rate = 0
